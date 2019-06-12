@@ -43,7 +43,7 @@ function hill_climb()
         end
         recent_rewards = length(all_rewards) >= 100 ? all_rewards[end-99:end] : all_rewards
         @printf("Episode: %3d    Mean of recent rewards: %3.0f\n", episode, mean(recent_rewards))
-        if episode >= 100 && mean(recent_rewards) > 195
+        if episode >= 100 && mean(recent_rewards) >= 195
             return best_weights
         end
     end
