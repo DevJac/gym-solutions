@@ -29,14 +29,17 @@ noop(_) = nothing
 function hill_climb()
     # The weights are a linear transformation from state to action.
     best_weights = zeros(action_size, state_size)
+    noise_scale = 1
     all_rewards = []
     for episode in Iterators.countfrom()
-        # If we haven't succeeded by episode 120, let's try something completely new.
-        episode_weights = episode % 120 == 0 ? randn(action_size, state_size) : randn(action_size, state_size) .+ best_weights
+        episode_weights = best_weights + randn(action_size, state_size) * noise_scale
         episode_reward = run_episode(noop, env, Policy(episode_weights))
         push!(all_rewards, episode_reward)
         if episode_reward >= maximum(all_rewards)
             best_weights = episode_weights
+            noise_scale = noise_scale / 2
+        else
+            noise_scale = max(1, noise_scale * 2)
         end
         recent_rewards = length(all_rewards) >= 100 ? all_rewards[end-99:end] : all_rewards
         @printf("Episode: %3d    Mean of recent rewards: %3.0f\n", episode, mean(recent_rewards))
