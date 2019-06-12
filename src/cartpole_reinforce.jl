@@ -25,7 +25,7 @@ function loss(model, sars)
     )
 end
 
-const default_optimizer = ADAM()
+const default_optimizer = AMSGrad()
 
 function train!(model, sars, optimizer=default_optimizer)
     Flux.train!((sars) -> loss(model, sars), Flux.params(model), [(sars,)], optimizer)
