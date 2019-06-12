@@ -1,6 +1,6 @@
 # Turns out, a basic linear transformation can make a great policy.
 # Inspired by: https://github.com/udacity/deep-reinforcement-learning/blob/master/hill-climbing/Hill_Climbing.ipynb
-module CartPole
+module CartPoleHillClimbing
 
 using OpenAIGym
 using Printf
@@ -42,25 +42,28 @@ function hill_climb()
             noise_scale = max(1, noise_scale * 2)
         end
         recent_rewards = length(all_rewards) >= 100 ? all_rewards[end-99:end] : all_rewards
-        @printf("Episode: %3d    Mean of recent rewards: %3.0f\n", episode, mean(recent_rewards))
+        if episode % 10 == 0
+            @printf("Episode: %3d    Mean of recent rewards: %3.0f\n", episode, mean(recent_rewards))
+        end
         if episode >= 100 && mean(recent_rewards) >= 195
-            return best_weights
+            return episode, best_weights
         end
     end
 end
 
 function run()
-    solution_weights = hill_climb()
-    println("Observe the solution")
+    solved_in, solution_weights = hill_climb()
+    @printf("Solved in %d episodes. Observe the solution.", solved_in)
     for _ in 1:10
         run_episode(env, Policy(solution_weights)) do _
             render(env)
         end
     end
+    close(env)
 end
 
 end # end module
 
 if !isinteractive()
-    CartPole.run()
+    CartPoleHillClimbing.run()
 end
