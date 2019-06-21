@@ -53,7 +53,7 @@ end
 
 function run()
     solved_in, solution_weights = hill_climb()
-    @printf("Solved in %d episodes. Observe the solution.", solved_in)
+    @printf("Solved in %d episodes. Observe the solution.\n", solved_in)
     for _ in 1:10
         run_episode(env, Policy(solution_weights)) do _
             render(env)

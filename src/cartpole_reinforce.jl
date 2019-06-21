@@ -94,7 +94,7 @@ end
 
 function run()
     solved_in, solution = reinforce()
-    @printf("Solved in %d episodes. Observe the solution.", solved_in)
+    @printf("Solved in %d episodes. Observe the solution.\n", solved_in)
     run_episodes(10, Policy(solution), render_env=true, close_env=true)
 end
 
