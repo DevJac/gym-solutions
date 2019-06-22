@@ -9,22 +9,25 @@ const env = GymEnv(:LunarLander, :v2)
 const state_size = length(env.state)
 const actions = 0:3
 
-function make_models(hidden_layer_size=16)
+function make_models(hidden_layer_size=64)
     policy = Chain(
         Dense(state_size, hidden_layer_size, relu),
+        Dense(hidden_layer_size, hidden_layer_size, relu),
         Dense(hidden_layer_size, length(actions), identity),
         softmax)
     value = Chain(
         Dense(state_size, hidden_layer_size, relu),
-        Dense(hidden_layer_size, length(actions), identity),
+        Dense(hidden_layer_size, hidden_layer_size, relu),
+        Dense(hidden_layer_size, 1, identity),
         v -> v[1])
     (policy, value)
 end
 
-function p_loss(p_model, v_model, sars)
+function p_loss(p_model, v_model, sars; entropy_bonus=0.001)
     -sum(
         map(sars) do sars
-            (sars.q - v_model(sars.s)) * log(p_model(sars.s)[sars.a + 1])
+            p = p_model(sars.s)
+            (sars.q - v_model(sars.s)) * log(p[sars.a + 1]) + entropy_bonus * entropy(p)
         end
     )
 end
