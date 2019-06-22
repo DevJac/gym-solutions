@@ -9,33 +9,52 @@ const env = GymEnv(:LunarLander, :v2)
 const state_size = length(env.state)
 const actions = 0:3
 
-function make_model(hidden_layer_size=16)
-    Chain(
+function make_models(hidden_layer_size=16)
+    policy = Chain(
         Dense(state_size, hidden_layer_size, relu),
         Dense(hidden_layer_size, length(actions), identity),
         softmax)
+    value = Chain(
+        Dense(state_size, hidden_layer_size, relu),
+        Dense(hidden_layer_size, length(actions), identity),
+        v -> v[1])
+    (policy, value)
 end
 
-function loss(model, sars)
+function p_loss(p_model, v_model, sars)
     -sum(
         map(sars) do sars
-            sars.q * log(model(sars.s)[sars.a + 1])
+            (sars.q - v_model(sars.s)) * log(p_model(sars.s)[sars.a + 1])
         end
     )
 end
 
-const default_optimizer = AMSGrad()
+const default_p_optimizer = AMSGrad()
 
-function train!(model, sars, optimizer=default_optimizer)
-    Flux.train!((sars) -> loss(model, sars), Flux.params(model), [(sars,)], optimizer)
+function p_train!(p_model, v_model, sars, optimizer=default_p_optimizer)
+    Flux.train!((sars) -> p_loss(p_model, v_model, sars), Flux.params(p_model), [(sars,)], optimizer)
+end
+
+function v_loss(v_model, sars)
+    sum(
+        map(sars) do sars
+            (sars.q - v_model(sars.s)) ^ 2
+        end
+    )
+end
+
+const default_v_optimizer = AMSGrad()
+
+function v_train!(v_model, sars, optimizer=default_v_optimizer)
+    Flux.train!((sars) -> v_loss(v_model, sars), Flux.params(v_model), [(sars,)], optimizer)
 end
 
 struct Policy <: AbstractPolicy
-    model
+    p_model
 end
 
 function action(policy::Policy, r, s, A)
-    sample(actions, Weights(policy.model(s)))
+    sample(actions, Weights(policy.p_model(s)))
 end
 
 mutable struct SARS
@@ -75,18 +94,19 @@ function fill_q!(sars; discount_factor=1)
 end
 
 function reinforce()
-    model = make_model()
+    p_model, v_model = make_models()
     all_rewards = []
     for episode in 1:10_000
-        sars, episode_rewards = run_episodes(1, Policy(model))
+        sars, episode_rewards = run_episodes(1, Policy(p_model))
         append!(all_rewards, episode_rewards)
         recent_rewards = length(all_rewards) >= 100 ? all_rewards[end-99:end] : all_rewards
-        train!(model, sars)
+        v_train!(v_model, sars)
+        p_train!(p_model, v_model, sars)
         if episode % 100 == 0
             @printf("Episode: %4d    Mean of recent rewards: %6.2f\n", episode, mean(recent_rewards))
         end
         if episode >= 100 && mean(recent_rewards) >= 200
-            return episode, model
+            return episode, p_model
         end
     end
 end
