@@ -86,7 +86,7 @@ function reinforce()
         if episode % 100 == 0
             @printf("Episode: %4d    Mean of recent rewards: %6.2f\n", episode, mean(recent_rewards))
         end
-        if mean(recent_rewards) >= 195
+        if episode >= 100 && mean(recent_rewards) >= 195
             return episode, model
         end
     end
