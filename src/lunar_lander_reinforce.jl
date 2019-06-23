@@ -1,6 +1,7 @@
 module LunarLanderREINFORCE
 
 using Flux
+using LinearAlgebra
 using OpenAIGym
 using Printf
 import Reinforce: action
@@ -11,25 +12,25 @@ const actions = 0:3
 
 function make_models(hidden_layer_size=64)
     policy = Chain(
-        Dense(state_size, hidden_layer_size, relu),
-        Dense(hidden_layer_size, hidden_layer_size, relu),
+        Dense(state_size, hidden_layer_size, swish),
+        Dense(hidden_layer_size, hidden_layer_size, swish),
         Dense(hidden_layer_size, length(actions), identity),
         softmax)
     value = Chain(
-        Dense(state_size, hidden_layer_size, relu),
-        Dense(hidden_layer_size, hidden_layer_size, relu),
+        Dense(state_size, hidden_layer_size, swish),
+        Dense(hidden_layer_size, hidden_layer_size, swish),
         Dense(hidden_layer_size, 1, identity),
         v -> v[1])
     (policy, value)
 end
 
-function p_loss(p_model, v_model, sars; entropy_bonus=0.001)
+function p_loss(p_model, v_model, sars; entropy_bonus=0.001, regularization_pressure=0.001)
     -sum(
         map(sars) do sars
             p = p_model(sars.s)
             (sars.q - v_model(sars.s)) * log(p[sars.a + 1]) + entropy_bonus * entropy(p)
         end
-    )
+    ) + regularization_pressure * sum(norm, Flux.params(p_model))
 end
 
 const default_p_optimizer = AMSGrad()
@@ -38,12 +39,12 @@ function p_train!(p_model, v_model, sars, optimizer=default_p_optimizer)
     Flux.train!((sars) -> p_loss(p_model, v_model, sars), Flux.params(p_model), [(sars,)], optimizer)
 end
 
-function v_loss(v_model, sars)
+function v_loss(v_model, sars; regularization_pressure=0.001)
     sum(
         map(sars) do sars
             (sars.q - v_model(sars.s)) ^ 2
         end
-    )
+    ) + regularization_pressure * sum(norm, Flux.params(v_model))
 end
 
 const default_v_optimizer = AMSGrad()
