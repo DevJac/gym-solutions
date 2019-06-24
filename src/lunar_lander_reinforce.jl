@@ -98,16 +98,19 @@ function fill_q!(sars; discount_factor=1)
 end
 
 function reinforce()
+    last_progress_output = 0
     p_model, v_model = make_models()
     all_rewards = []
     for episode in 1:10_000
-        sars, episode_rewards = run_episodes(1, Policy(p_model))
+        output_progress = time() > last_progress_output + 20
+        sars, episode_rewards = run_episodes(1, Policy(p_model), render_env=output_progress)
         append!(all_rewards, episode_rewards)
         recent_rewards = length(all_rewards) >= 100 ? all_rewards[end-99:end] : all_rewards
         v_train!(v_model, sars)
         p_train!(p_model, v_model, sars)
-        if episode % 100 == 0
-            @printf("Episode: %4d    Mean of recent rewards: %6.2f\n", episode, mean(recent_rewards))
+        if output_progress
+            @printf("Episode: %4d    Mean of recent rewards: %7.2f\n", episode, mean(recent_rewards))
+            last_progress_output = time()
         end
         if episode >= 100 && mean(recent_rewards) >= 200
             return episode, p_model
