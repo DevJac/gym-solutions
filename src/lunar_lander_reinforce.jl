@@ -24,7 +24,7 @@ function make_models(hidden_layer_size=64)
     (policy, value)
 end
 
-function p_loss(p_model, v_model, sars; entropy_bonus=0.001, regularization_pressure=0.001)
+function p_loss(p_model, v_model, sars; entropy_bonus=0.1, regularization_pressure=0.01)
     -sum(
         map(sars) do sars
             p = p_model(sars.s)
@@ -39,7 +39,7 @@ function p_train!(p_model, v_model, sars, optimizer=default_p_optimizer)
     Flux.train!((sars) -> p_loss(p_model, v_model, sars), Flux.params(p_model), [(sars,)], optimizer)
 end
 
-function v_loss(v_model, sars; regularization_pressure=0.001)
+function v_loss(v_model, sars; regularization_pressure=10)
     sum(
         map(sars) do sars
             (sars.q - v_model(sars.s)) ^ 2
