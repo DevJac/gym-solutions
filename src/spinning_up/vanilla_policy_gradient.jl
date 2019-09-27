@@ -53,10 +53,15 @@ const π_optimizer = ADAMW(0.001)
 const q_optimizer = ADAMW(0.001)
 
 function train_policy!(policy, sars)
-    Flux.train!(sars -> π_loss(policy, sars), Flux.params(policy.π), [(sars,)], π_optimizer)
-    for _ in 1:100
-        Flux.train!(sars -> q_loss(policy, sars), Flux.params(policy.q), [(sars,)], q_optimizer)
+    for fit_iteration in Iterators.countfrom(1)
+        pre_loss = q_loss(policy, sars)
+        for _ in 1:10
+            Flux.train!(sars -> q_loss(policy, sars), Flux.params(policy.q), [(sample(sars, 100),)], q_optimizer)
+        end
+        post_loss = q_loss(policy, sars)
+        if post_loss >= pre_loss; break end
     end
+    Flux.train!(sars -> π_loss(policy, sars), Flux.params(policy.π), [(sars,)], π_optimizer)
 end
 
 struct Policy <: AbstractPolicy
@@ -105,7 +110,8 @@ lastn(n, xs) = xs[max(1, end-n+1):end]
 
 function run(policy=Policy(make_π_network(), make_q_network()); stop_reward=200)
     try
-        all_rewards = []
+        all_rewards = Float64[]
+        mean_rewards = Tuple{Int64, Float64}[]
         batch_size = 100
         best_mean_reward = -Inf
         for iteration in Iterators.countfrom(1)
@@ -113,6 +119,7 @@ function run(policy=Policy(make_π_network(), make_q_network()); stop_reward=200
             sars, rewards = run_episodes(batch_size, policy)
             append!(all_rewards, rewards)
             recent_rewards = lastn(100, all_rewards)
+            push!(mean_rewards, (length(all_rewards), mean(recent_rewards)))
             if length(recent_rewards) == 100
                 if mean(recent_rewards) > best_mean_reward
                     best_mean_reward = mean(recent_rewards)
@@ -122,9 +129,15 @@ function run(policy=Policy(make_π_network(), make_q_network()); stop_reward=200
                 end
             end
             @printf("episodes: %5d  recent rewards: %7.2f\n", length(all_rewards), mean(recent_rewards))
-            display(scatter(lastn(20_000, all_rewards), size=(1200, 800), legend=false,
-                            markersize=3, markeralpha=0.7,
-                            markerstrokewidth=0, markerstrokealpha=0))
+            scatter(all_rewards, size=(1200, 800), markercolor=:blue, legend=false,
+                    markersize=3, markeralpha=0.5,
+                    markerstrokewidth=0, markerstrokealpha=0)
+            plot!(mean_rewards, linecolor=:red,
+                  linewidth=1, linealpha=0.5)
+            display(scatter!(mean_rewards,
+                             markercolor=:red, markershape=:vline,
+                             markersize=11, markeralpha=0.2,
+                             markerstrokewidth=0, markerstrokealpha=0))
             if mean(recent_rewards) >= stop_reward; break end
             train_policy!(policy, sars)
         end
