@@ -99,7 +99,7 @@ function run(policy=Policy(make_π_network()); stop_reward=200)
                     batch_size += 1
                 end
             end
-            @printf("episodes: %5d  recent rewards: %7.2f\n", length(all_rewards), mean(recent_rewards))
+            @printf("episodes: %5d  recent rewards: %7.2f  best reward: %7.2f\n", length(all_rewards), mean(recent_rewards), best_mean_reward)
             scatter(all_rewards, size=(1200, 800), markercolor=:blue, legend=false,
                     markersize=3, markeralpha=0.3,
                     markerstrokewidth=0, markerstrokealpha=0)
