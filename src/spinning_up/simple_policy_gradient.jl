@@ -20,53 +20,24 @@ function make_π_network(hidden_layer_size=32)
         softmax)
 end
 
-struct QNetwork; network end
-(q::QNetwork)(s, a) = q.network(vcat(s, Flux.onehot(a, env.actions)))
-Flux.@treelike QNetwork
-
-function make_q_network(hidden_layer_size=32)
-    QNetwork(Chain(
-        Dense(length(env.state) + length(env.actions), hidden_layer_size, swish),
-        Dense(hidden_layer_size, hidden_layer_size, swish),
-        Dense(hidden_layer_size, 1, identity),
-        first))
-end
-
 a_to_π_index(a) = indexin(a, env.actions.items)[1]
 
-v(policy, s) = sum(policy.π(s)[a_to_π_index(a)] * policy.q(s, a) for a in env.actions)
-
 function π_loss(policy, sars)
+    baseline = mean(sars.q for sars in sars)
     -sum(sars) do sars
-        Φ = policy.q(sars.s, sars.a) - v(policy, sars.s)
+        Φ = sars.q - baseline
         log(policy.π(sars.s)[a_to_π_index(sars.a)]) * Φ
     end / length(filter(sars -> sars.f, sars))
 end
 
-function q_loss(policy, sars)
-    sum(sars) do sars
-        (policy.q(sars.s, sars.a) - sars.q)^2
-    end / length(sars)
-end
-
-const π_optimizer = ADAMW(0.001)
-const q_optimizer = ADAMW(0.001)
+const π_optimizer = AMSGrad()
 
 function train_policy!(policy, sars)
-    for fit_iteration in Iterators.countfrom(1)
-        pre_loss = q_loss(policy, sars)
-        for _ in 1:10
-            Flux.train!(sars -> q_loss(policy, sars), Flux.params(policy.q), [(sample(sars, 100),)], q_optimizer)
-        end
-        post_loss = q_loss(policy, sars)
-        if post_loss >= pre_loss; break end
-    end
     Flux.train!(sars -> π_loss(policy, sars), Flux.params(policy.π), [(sars,)], π_optimizer)
 end
 
 struct Policy <: AbstractPolicy
     π
-    q
 end
 
 Reinforce.action(policy::Policy, r, s, A) = sample(env.actions, Weights(policy.π(s)))
@@ -108,7 +79,7 @@ end
 
 lastn(n, xs) = xs[max(1, end-n+1):end]
 
-function run(policy=Policy(make_π_network(), make_q_network()); stop_reward=200)
+function run(policy=Policy(make_π_network()); stop_reward=200)
     try
         all_rewards = Float64[]
         mean_rewards = Tuple{Int64, Float64}[]
@@ -130,7 +101,7 @@ function run(policy=Policy(make_π_network(), make_q_network()); stop_reward=200
             end
             @printf("episodes: %5d  recent rewards: %7.2f\n", length(all_rewards), mean(recent_rewards))
             scatter(all_rewards, size=(1200, 800), markercolor=:blue, legend=false,
-                    markersize=3, markeralpha=0.5,
+                    markersize=3, markeralpha=0.3,
                     markerstrokewidth=0, markerstrokealpha=0)
             plot!(mean_rewards, linecolor=:red,
                   linewidth=1, linealpha=0.5)
