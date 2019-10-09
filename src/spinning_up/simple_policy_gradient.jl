@@ -43,7 +43,6 @@ end
 a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
 
 function π_loss(policy, sars)
-    sars = fill_q(sars)
     baseline = mean(sars.q for sars in sars)
     -sum(sars) do sars
         Φ = sars.q - baseline
@@ -54,6 +53,7 @@ end
 const π_optimizer = AMSGrad()
 
 function train_policy!(policy, sars)
+    sars = fill_q(sars)
     Flux.train!(sars -> π_loss(policy, sars), Flux.params(policy.π), [(sars,)], π_optimizer)
 end
 
