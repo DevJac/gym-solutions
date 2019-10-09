@@ -93,6 +93,7 @@ function run_until_reward(policy, stop_reward)
                              markercolor=:red, markershape=:vline,
                              markersize=11, markeralpha=0.2,
                              markerstrokewidth=0, markerstrokealpha=0))
+            sleep(0.001)  # This enables the plot to update immediately.
             if mean(recent_rewards) >= stop_reward; break end
             policy.train_policy!(policy, sars)
         end
