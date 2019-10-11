@@ -11,7 +11,7 @@ Base.iterate(set::DiscreteSet, state) = iterate(set.items, state)
 Flux.onehot(x, set::DiscreteSet) = Flux.onehot(x, set.items)
 OpenAIGym.sample(set::DiscreteSet, weights) = sample(set.items, weights)
 
-mutable struct SARS
+struct SARS
     s
     a
     r
@@ -34,18 +34,23 @@ function run_episodes_parallel(n_episodes, policy)
 end
 
 function run_episodes(n_episodes, policy; render_count=0, close_env=false, parallel=false)
+    if parallel
+        env = GymEnv(policy.env.name, policy.env.ver)
+    else
+        env = policy.env
+    end
     sars = []
     rewards = []
     for episode in 1:n_episodes
-        reward = run_episode(policy.env, policy) do (s, a, r, s′)
+        reward = run_episode(env, policy) do (s, a, r, s′)
             if parallel
                 s = copy(s)
                 a = copy(a)
                 r = copy(r)
                 s′ = copy(s′)
             end
-            push!(sars, SARS(s, a, r, s′, finished(policy.env)))
-            if render_count >= episode; render(policy.env) end
+            push!(sars, SARS(s, a, r, s′, finished(env)))
+            if render_count >= episode; render(env) end
         end
         push!(rewards, reward)
     end
