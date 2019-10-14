@@ -67,7 +67,7 @@ a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
 
 clip(x, lo, hi) = clamp(x, Float32(lo), Float32(hi))
 
-function π_loss(policy₀, policy′, sars, ϵ=0.1)
+function π_loss(policy₀, policy′, sars, ϵ=0.2)
     -sum(sars) do sars
         π₀ = policy₀.π(sars.s)
         π′ = policy′.π(sars.s)
