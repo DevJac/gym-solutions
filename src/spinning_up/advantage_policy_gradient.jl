@@ -55,13 +55,19 @@ function make_q_network(env, hidden_layer_size=32)
         first))
 end
 
-a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
+function make_v_network(env, hidden_layer_size=32)
+    Chain(
+        Dense(length(env.state), hidden_layer_size, swish),
+        Dense(hidden_layer_size, hidden_layer_size, swish),
+        Dense(hidden_layer_size, 1, identity),
+        first)
+end
 
-v(policy, s) = sum(policy.π(s)[a_to_π_index(policy.env, a)] * policy.q(s, a) for a in policy.env.actions)
+a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
 
 function π_loss(policy, sars)
     -sum(sars) do sars
-        Φ = policy.q(sars.s, sars.a) - v(policy, sars.s)
+        Φ = policy.q(sars.s, sars.a) - policy.v(sars.s)
         log(policy.π(sars.s)[a_to_π_index(policy.env, sars.a)]) * Φ
     end / length(filter(sars -> sars.f, sars))
 end
@@ -72,8 +78,15 @@ function q_loss(policy, sars)
     end / length(sars)
 end
 
+function v_loss(policy, sars)
+    sum(sars) do sars
+        (policy.v(sars.s) - sars.q)^2
+    end / length(sars)
+end
+
 const π_optimizer = AMSGrad()
 const q_optimizer = AMSGrad()
+const v_optimizer = AMSGrad()
 
 function train_policy!(policy, sars)
     sars = fill_q(sars)
@@ -85,6 +98,14 @@ function train_policy!(policy, sars)
         post_loss = q_loss(policy, sars)
         if post_loss >= pre_loss; break end
     end
+    for fit_iteration in Iterators.countfrom(1)
+        pre_loss = v_loss(policy, sars)
+        for _ in 1:10
+            Flux.train!(sars -> v_loss(policy, sars), Flux.params(policy.v), [(sample(sars, 100),)], v_optimizer)
+        end
+        post_loss = v_loss(policy, sars)
+        if post_loss >= pre_loss; break end
+    end
     Flux.train!(sars -> π_loss(policy, sars), Flux.params(policy.π), [(sars,)], π_optimizer)
 end
 
@@ -92,13 +113,14 @@ struct Policy <: AbstractPolicy
     env  # The environment is not part of the policy, but the policy depends on the environment.
     π
     q
+    v
     train_policy!
 end
 
 Reinforce.action(policy::Policy, r, s, A) = sample(policy.env.actions, Weights(policy.π(s)))
 
 function make_default_policy(env)
-    Policy(env, make_π_network(env), make_q_network(env), train_policy!)
+    Policy(env, make_π_network(env), make_q_network(env), make_v_network(env), train_policy!)
 end
 
 end  # end module AdvantagePG
@@ -107,6 +129,6 @@ include("base.jl")
 
 function run()
     env = GymEnv(:CartPole, :v1)
-    policy = SimplePG.make_default_policy(env)
+    policy = AdvantagePG.make_default_policy(env)
     run_until_reward(policy, 495)
 end
