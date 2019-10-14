@@ -55,7 +55,13 @@ function make_q_network(env, hidden_layer_size=32)
         first))
 end
 
-v(policy, s) = sum(policy.π(s)[a_to_π_index(policy.env, a)] * policy.q(s, a) for a in policy.env.actions)
+function make_v_network(env, hidden_layer_size=32)
+    Chain(
+        Dense(length(env.state), hidden_layer_size, swish),
+        Dense(hidden_layer_size, hidden_layer_size, swish),
+        Dense(hidden_layer_size, 1, identity),
+        first)
+end
 
 a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
 
@@ -67,7 +73,7 @@ function π_loss(policy₀, policy′, sars, ϵ=0.1)
         π′ = policy′.π(sars.s)
         a₀ = π₀[a_to_π_index(policy₀.env, sars.a)]
         a′ = π′[a_to_π_index(policy′.env, sars.a)]
-        advantage = policy₀.q(sars.s, sars.a) - v(policy₀, sars.s)
+        advantage = policy₀.q(sars.s, sars.a) - policy₀.v(sars.s)
         min((a′ / a₀) * advantage, clip(a′ / a₀, 1 - ϵ, 1 + ϵ) * advantage)
     end / length(sars)
 end
@@ -78,8 +84,15 @@ function q_loss(policy, sars)
     end / length(sars)
 end
 
+function v_loss(policy, sars)
+    sum(sars) do sars
+        (policy.v(sars.s) - sars.q)^2
+    end / length(sars)
+end
+
 const π_optimizer = AMSGrad()
 const q_optimizer = AMSGrad()
+const v_optimizer = AMSGrad()
 
 function train_policy!(policy, sars)
     sars = fill_q(sars)
@@ -89,6 +102,14 @@ function train_policy!(policy, sars)
             Flux.train!(sars -> q_loss(policy, sars), Flux.params(policy.q), [(sample(sars, 100),)], q_optimizer)
         end
         post_loss = q_loss(policy, sars)
+        if post_loss >= pre_loss; break end
+    end
+    for fit_iteration in Iterators.countfrom(1)
+        pre_loss = v_loss(policy, sars)
+        for _ in 1:10
+            Flux.train!(sars -> v_loss(policy, sars), Flux.params(policy.v), [(sample(sars, 100),)], v_optimizer)
+        end
+        post_loss = v_loss(policy, sars)
         if post_loss >= pre_loss; break end
     end
     policy₀ = deepcopy(policy)
@@ -107,13 +128,14 @@ struct Policy <: AbstractPolicy
     env  # The environment is not part of the policy, but the policy depends on the environment.
     π
     q
+    v
     train_policy!
 end
 
 Reinforce.action(policy::Policy, r, s, A) = sample(policy.env.actions, Weights(policy.π(s)))
 
 function make_default_policy(env)
-    Policy(env, make_π_network(env), make_q_network(env), train_policy!)
+    Policy(env, make_π_network(env), make_q_network(env), make_v_network(env), train_policy!)
 end
 
 end  # end module AdvantagePPO
