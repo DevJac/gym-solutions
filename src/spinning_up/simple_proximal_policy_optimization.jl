@@ -67,7 +67,7 @@ function train_policy!(policy, sars)
             Flux.train!(sars -> π_loss(policy₀, policy′, sars), Flux.params(policy′.π), [(sample(sars, 100),)], π_optimizer)
         end
         post_loss = π_loss(policy₀, policy′, sars)
-        if post_loss >= pre_loss; break end
+        if post_loss >= pre_loss || fit_iteration >= 10; break end
     end
 end
 

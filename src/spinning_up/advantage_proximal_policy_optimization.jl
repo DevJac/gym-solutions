@@ -102,7 +102,7 @@ function train_policy!(policy, sars)
             Flux.train!(sars -> q_loss(policy, sars), Flux.params(policy.q), [(sample(sars, 100),)], q_optimizer)
         end
         post_loss = q_loss(policy, sars)
-        if post_loss >= pre_loss; break end
+        if post_loss >= pre_loss || fit_iteration >= 10; break end
     end
     for fit_iteration in Iterators.countfrom(1)
         pre_loss = v_loss(policy, sars)
@@ -110,7 +110,7 @@ function train_policy!(policy, sars)
             Flux.train!(sars -> v_loss(policy, sars), Flux.params(policy.v), [(sample(sars, 100),)], v_optimizer)
         end
         post_loss = v_loss(policy, sars)
-        if post_loss >= pre_loss; break end
+        if post_loss >= pre_loss || fit_iteration >= 10; break end
     end
     policy₀ = deepcopy(policy)
     policy′ = policy

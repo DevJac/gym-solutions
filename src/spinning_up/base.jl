@@ -3,6 +3,7 @@ using Flux
 using OpenAIGym
 using Plots
 using Printf
+using Statistics
 
 pyplot()
 
@@ -83,7 +84,7 @@ function run_until_reward(policy, stop_reward)
             if length(recent_rewards) == 100
                 if mean(recent_rewards) > best_mean_reward
                     best_mean_reward = mean(recent_rewards)
-                    batch_size = max(1, floor(batch_size * 0.8))
+                    batch_size = max(10, floor(batch_size * 0.8))
                 else
                     batch_size += 1
                 end
@@ -106,4 +107,10 @@ function run_until_reward(policy, stop_reward)
         if typeof(e) != InterruptException; rethrow() end
     end
     policy, RunStats(time() - start_time, length(all_rewards), training_iteration)
+end
+
+function print_stats_summary(stats)
+    @printf("Wall Time          : %6d ± %6d\n", mean(s.wall_time for s in stats), std(s.wall_time for s in stats))
+    @printf("Episodes           : %6d ± %6d\n", mean(s.episodes for s in stats), std(s.episodes for s in stats))
+    @printf("Training Iterations: %6d ± %6d\n", mean(s.training_iterations for s in stats), std(s.training_iterations for s in stats))
 end
