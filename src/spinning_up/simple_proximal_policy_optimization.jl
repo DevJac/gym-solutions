@@ -55,19 +55,14 @@ function π_loss(policy₀, policy′, sars, ϵ=0.2)
     end / length(sars)
 end
 
-const π_optimizer = AMSGrad()
+const π_optimizer = ADAM(0.001)
 
 function train_policy!(policy, sars)
     sars = fill_q(sars)
     policy₀ = deepcopy(policy)
     policy′ = policy
-    for fit_iteration in Iterators.countfrom(1)
-        pre_loss = π_loss(policy₀, policy′, sars)
-        for _ in 1:10
-            Flux.train!(sars -> π_loss(policy₀, policy′, sars), Flux.params(policy′.π), [(sample(sars, 100),)], π_optimizer)
-        end
-        post_loss = π_loss(policy₀, policy′, sars)
-        if post_loss >= pre_loss || fit_iteration >= 10; break end
+    for fit_iteration in 1:10
+        Flux.train!(sars -> π_loss(policy₀, policy′, sars), Flux.params(policy′.π), [(sample(sars, 100),)], π_optimizer)
     end
 end
 

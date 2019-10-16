@@ -50,7 +50,7 @@ function π_loss(policy, sars)
     end / length(filter(sars -> sars.f, sars))
 end
 
-const π_optimizer = AMSGrad()
+const π_optimizer = ADAM(0.001)
 
 function train_policy!(policy, sars)
     sars = fill_q(sars)
