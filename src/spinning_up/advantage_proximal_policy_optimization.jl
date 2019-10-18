@@ -90,21 +90,20 @@ function v_loss(policy, sars)
     end / length(sars)
 end
 
-const π_optimizer = ADAM(0.001)
-const q_optimizer = ADAM(0.001)
-const v_optimizer = ADAM(0.001)
-
 function train_policy!(policy, sars)
     sars = fill_q(sars)
-    for fit_iteration in 1:100
-        Flux.train!(sars -> q_loss(policy, sars), Flux.params(policy.q), [(sample(sars, 100),)], q_optimizer)
-    end
-    for fit_iteration in 1:100
+    v_optimizer = ADAM()
+    q_optimizer = ADAM()
+    π_optimizer = ADAM()
+    for fit_iteration in 1:1000
         Flux.train!(sars -> v_loss(policy, sars), Flux.params(policy.v), [(sample(sars, 100),)], v_optimizer)
+    end
+    for fit_iteration in 1:1000
+        Flux.train!(sars -> q_loss(policy, sars), Flux.params(policy.q), [(sample(sars, 100),)], q_optimizer)
     end
     policy₀ = deepcopy(policy)
     policy′ = policy
-    for fit_iteration in 1:10
+    for fit_iteration in 1:1000
         Flux.train!(sars -> π_loss(policy₀, policy′, sars), Flux.params(policy′.π), [(sample(sars, 100),)], π_optimizer)
     end
 end

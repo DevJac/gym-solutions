@@ -55,13 +55,12 @@ function π_loss(policy₀, policy′, sars, ϵ=0.2)
     end / length(sars)
 end
 
-const π_optimizer = ADAM(0.001)
-
 function train_policy!(policy, sars)
     sars = fill_q(sars)
     policy₀ = deepcopy(policy)
     policy′ = policy
-    for fit_iteration in 1:10
+    π_optimizer = ADAM()
+    for fit_iteration in 1:1000
         Flux.train!(sars -> π_loss(policy₀, policy′, sars), Flux.params(policy′.π), [(sample(sars, 100),)], π_optimizer)
     end
 end
