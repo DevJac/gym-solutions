@@ -24,7 +24,7 @@ function run_episodes_parallel(n_episodes, policy)
     sars = []
     rewards = []
     futures = map(1:n_episodes) do _
-        @spawn run_episodes(1, policy, parallel=true)
+        @spawnat :any run_episodes(1, policy, parallel=true)
     end
     for future in futures
         future_sars, future_rewards = fetch(future)
