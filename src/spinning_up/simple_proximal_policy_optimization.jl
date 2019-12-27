@@ -41,6 +41,7 @@ function make_π_network(env, hidden_layer_size=32)
 end
 
 a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
+Flux.@nograd a_to_π_index
 
 clip(x, lo, hi) = clamp(x, Float32(lo), Float32(hi))
 

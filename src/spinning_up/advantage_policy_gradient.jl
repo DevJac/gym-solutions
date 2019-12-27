@@ -44,7 +44,9 @@ struct QNetwork
     env
     network
 end
-(q::QNetwork)(s, a) = q.network(vcat(s, Flux.onehot(a, q.env.actions)))
+onehot(x, set::DiscreteSet) = Flux.onehot(x, set.items)
+Flux.@nograd onehot
+(q::QNetwork)(s, a) = q.network(vcat(s, onehot(a, q.env.actions)))
 Flux.@treelike QNetwork
 
 function make_q_network(env, hidden_layer_size=32)
@@ -64,12 +66,16 @@ function make_v_network(env, hidden_layer_size=32)
 end
 
 a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
+Flux.@nograd a_to_π_index
+
+episode_count(sars) = length(filter(sars -> sars.f, sars))
+Flux.@nograd episode_count
 
 function π_loss(policy, sars)
     -sum(sars) do sars
         Φ = policy.q(sars.s, sars.a) - policy.v(sars.s)
         log(policy.π(sars.s)[a_to_π_index(policy.env, sars.a)]) * Φ
-    end / length(filter(sars -> sars.f, sars))
+    end / episode_count(sars)
 end
 
 function q_loss(policy, sars)

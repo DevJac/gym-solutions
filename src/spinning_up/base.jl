@@ -9,7 +9,6 @@ pyplot()
 
 Base.iterate(set::DiscreteSet) = iterate(set.items)
 Base.iterate(set::DiscreteSet, state) = iterate(set.items, state)
-Flux.onehot(x, set::DiscreteSet) = Flux.onehot(x, set.items)
 OpenAIGym.sample(set::DiscreteSet, weights) = sample(set.items, weights)
 
 struct SARS
