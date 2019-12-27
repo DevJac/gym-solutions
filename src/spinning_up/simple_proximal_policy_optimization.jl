@@ -43,8 +43,6 @@ end
 a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
 Flux.@nograd a_to_π_index
 
-clip(x, lo, hi) = clamp(x, Float32(lo), Float32(hi))
-
 function π_loss(policy₀, policy′, sars, ϵ=0.2)
     baseline = mean(sars.q for sars in sars)
     -sum(sars) do sars
@@ -52,7 +50,7 @@ function π_loss(policy₀, policy′, sars, ϵ=0.2)
         π′ = policy′.π(sars.s)
         a₀ = π₀[a_to_π_index(policy₀.env, sars.a)]
         a′ = π′[a_to_π_index(policy′.env, sars.a)]
-        min((a′ / a₀) * (sars.q - baseline), clip(a′ / a₀, 1 - ϵ, 1 + ϵ) * (sars.q - baseline))
+        min((a′ / a₀) * (sars.q - baseline), clamp(a′ / a₀, 1 - ϵ, 1 + ϵ) * (sars.q - baseline))
     end / length(sars)
 end
 
