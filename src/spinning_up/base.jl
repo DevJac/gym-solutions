@@ -73,11 +73,12 @@ function run_until_reward(policy, stop_reward)
     best_mean_reward = -Inf
     best_mean_reward_episode = 0
     training_iteration = 0
+    run_episodes′ = nprocs() > 1 ? run_episodes_parallel : run_episodes
     try
         while true
             training_iteration += 1
             @printf("%2.2f %4d: batch size: %3d  ", (time() - start_time) / (60 * 60), training_iteration, round(batch_size))
-            sars, rewards = run_episodes_parallel(round(batch_size), policy)
+            sars, rewards = run_episodes′(round(batch_size), policy)
             append!(all_rewards, rewards)
             recent_rewards = last(all_rewards, 100)
             push!(mean_rewards, (length(all_rewards), mean(recent_rewards)))
