@@ -71,19 +71,22 @@ function run_until_reward(policy, stop_reward)
     mean_rewards = Tuple{Int64, Float64}[]  # Type annotation is needed for plots.
     batch_size = 100
     best_mean_reward = -Inf
+    best_mean_reward_episode = 0
     training_iteration = 0
     try
         while true
             training_iteration += 1
-            @printf("%2.2f %4d: batch size: %3d  ", (time() - start_time) / (60 * 60), training_iteration, batch_size)
-            sars, rewards = run_episodes_parallel(batch_size, policy)
+            @printf("%2.2f %4d: batch size: %3d  ", (time() - start_time) / (60 * 60), training_iteration, round(batch_size))
+            sars, rewards = run_episodes_parallel(round(batch_size), policy)
             append!(all_rewards, rewards)
             recent_rewards = last(all_rewards, 100)
             push!(mean_rewards, (length(all_rewards), mean(recent_rewards)))
             if length(recent_rewards) == 100
                 if mean(recent_rewards) > best_mean_reward
                     best_mean_reward = mean(recent_rewards)
-                    batch_size = max(10, floor(batch_size * 0.8))
+                    scale_down_power = min(1, (length(all_rewards) - best_mean_reward_episode) / 100)
+                    best_mean_reward_episode = length(all_rewards)
+                    batch_size *= 0.9 ^ scale_down_power
                 else
                     batch_size += 1
                 end
