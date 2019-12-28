@@ -40,11 +40,9 @@ function make_π_network(env, hidden_layer_size=32)
         softmax)
 end
 
-a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
-Flux.@nograd a_to_π_index
+Flux.@nograd a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
 
-episode_count(sars) = length(filter(sars -> sars.f, sars))
-Flux.@nograd episode_count
+Flux.@nograd episode_count(sars) = length(filter(sars -> sars.f, sars))
 
 function π_loss(policy, sars)
     baseline = mean(sars.q for sars in sars)

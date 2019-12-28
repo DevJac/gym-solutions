@@ -3,6 +3,8 @@ module AdvantagePG
 using Flux
 using OpenAIGym
 
+Flux.@nograd onehot(x, set::DiscreteSet) = Flux.onehot(x, set.items)
+
 struct SARS
     s
     a
@@ -44,10 +46,8 @@ struct QNetwork
     env
     network
 end
-onehot(x, set::DiscreteSet) = Flux.onehot(x, set.items)
-Flux.@nograd onehot
-(q::QNetwork)(s, a) = q.network(vcat(s, onehot(a, q.env.actions)))
 Flux.@treelike QNetwork
+(q::QNetwork)(s, a) = q.network(vcat(s, onehot(a, q.env.actions)))
 
 function make_q_network(env, hidden_layer_size=32)
     QNetwork(env, Chain(
@@ -65,11 +65,9 @@ function make_v_network(env, hidden_layer_size=32)
         first)
 end
 
-a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
-Flux.@nograd a_to_π_index
+Flux.@nograd a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
 
-episode_count(sars) = length(filter(sars -> sars.f, sars))
-Flux.@nograd episode_count
+Flux.@nograd episode_count(sars) = length(filter(sars -> sars.f, sars))
 
 function π_loss(policy, sars)
     -sum(sars) do sars

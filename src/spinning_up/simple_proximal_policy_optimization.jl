@@ -40,8 +40,7 @@ function make_π_network(env, hidden_layer_size=32)
         softmax)
 end
 
-a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
-Flux.@nograd a_to_π_index
+Flux.@nograd a_to_π_index(env, a) = indexin(a, env.actions.items)[1]
 
 function π_loss(policy₀, policy′, sars, ϵ=0.2)
     baseline = mean(sars.q for sars in sars)
