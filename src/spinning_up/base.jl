@@ -66,6 +66,8 @@ struct RunStats
 end
 
 function run_until_reward(policy, stop_reward)
+    env_t = 0
+    train_t = 1000
     start_time = time()
     all_rewards = []
     mean_rewards = Tuple{Int64, Float64}[]  # Type annotation is needed for plots.
@@ -78,7 +80,7 @@ function run_until_reward(policy, stop_reward)
         while true
             training_iteration += 1
             @printf("%2.2f %4d: batch size: %3d  ", (time() - start_time) / (60 * 60), training_iteration, round(batch_size))
-            sars, rewards = run_episodes′(round(batch_size), policy)
+            (sars, rewards), env_t, _, _, _ = @timed run_episodes′(round(batch_size), policy)
             append!(all_rewards, rewards)
             recent_rewards = last(all_rewards, 100)
             push!(mean_rewards, (length(all_rewards), mean(recent_rewards)))
@@ -87,7 +89,7 @@ function run_until_reward(policy, stop_reward)
                     best_mean_reward = mean(recent_rewards)
                     scale_down_power = min(1, (length(all_rewards) - best_mean_reward_episode) / 100)
                     best_mean_reward_episode = length(all_rewards)
-                    batch_size *= 0.9 ^ scale_down_power
+                    batch_size *= (train_t / (env_t + train_t)) ^ scale_down_power
                 else
                     batch_size += 1
                 end
@@ -104,7 +106,7 @@ function run_until_reward(policy, stop_reward)
                              markerstrokewidth=0, markerstrokealpha=0))
             sleep(0.001)  # This enables the plot to update immediately.
             if mean(recent_rewards) >= stop_reward; break end
-            policy.train_policy!(policy, sars)
+            _, train_t, _, _, _ = @timed policy.train_policy!(policy, sars)
         end
     catch e
         if typeof(e) != InterruptException; rethrow() end
