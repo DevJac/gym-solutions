@@ -21,27 +21,26 @@ function make_q_network(env, hidden_layer_size=32)
         first))
 end
 
-Flux.@nograd function y(q_target, policy, sars; discount_factor=1)
+Flux.@nograd function y(policy, sars; discount_factor=1)
     if sars.f
         sars.r
     else
-        sars.r + discount_factor * maximum(q_target(sars.s′, a′) for a′ in policy.env.actions)
+        sars.r + discount_factor * maximum(policy.q(sars.s′, a′) for a′ in policy.env.actions)
     end
 end
 
-function q_loss(q_target, policy, sars)
+function q_loss(policy, sars)
     sum(sars) do sars
-        (policy.q(sars.s, sars.a) - y(q_target, policy, sars))^2
+        (policy.q(sars.s, sars.a) - y(policy, sars))^2
     end / length(sars)
 end
 
 function train_policy!(policy, sars)
     append!(policy.replay_buffer, sars)
-    q_target = deepcopy(policy.q)
     q_optimizer = ADAM()
     for fit_iteration in 1:100
         Flux.train!(
-            sars -> q_loss(q_target, policy, sars),
+            sars -> q_loss(policy, sars),
             Flux.params(policy.q),
             [(sample(policy.replay_buffer, 100),)],
             q_optimizer)
