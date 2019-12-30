@@ -72,5 +72,5 @@ include("base.jl")
 function run()
     env = GymEnv(:CartPole, :v1)
     policy = DQN.make_default_policy(env)
-    run_until_reward(policy, 495)
+    run_until_reward(policy, 495, batch_size=10, adaptive_batch_size=false)
 end

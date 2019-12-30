@@ -65,13 +65,12 @@ struct RunStats
     training_iterations
 end
 
-function run_until_reward(policy, stop_reward)
+function run_until_reward(policy, stop_reward; batch_size=100, adaptive_batch_size=true)
     env_t = 0
     train_t = 1000
     start_time = time()
     all_rewards = []
     mean_rewards = Tuple{Int64, Float64}[]  # Type annotation is needed for plots.
-    batch_size = 100
     best_mean_reward = -Inf
     best_mean_reward_episode = 0
     training_iteration = 0
@@ -87,11 +86,15 @@ function run_until_reward(policy, stop_reward)
             if length(recent_rewards) == 100
                 if mean(recent_rewards) > best_mean_reward
                     best_mean_reward = mean(recent_rewards)
-                    scale_down_power = min(1, (length(all_rewards) - best_mean_reward_episode) / 100)
-                    best_mean_reward_episode = length(all_rewards)
-                    batch_size *= (train_t / (env_t + train_t)) ^ scale_down_power
+                    if adaptive_batch_size
+                        scale_down_power = min(1, (length(all_rewards) - best_mean_reward_episode) / 100)
+                        best_mean_reward_episode = length(all_rewards)
+                        batch_size *= (train_t / (env_t + train_t)) ^ scale_down_power
+                    end
                 else
-                    batch_size += 1
+                    if adaptive_batch_size
+                        batch_size += 1
+                    end
                 end
             end
             @printf("episodes: %5d  recent rewards: %7.2f  best reward: %7.2f\n", length(all_rewards), mean(recent_rewards), best_mean_reward)
