@@ -70,7 +70,7 @@ function V(policy, s)
     πₛ' * policy.q̄(s) + policy.α[1] * entropy(πₛ)
 end
 
-function eb_loss(policy, sars)
+function α_loss(policy, sars)
     sum(sars) do sars
         policy.α[1] * entropy(policy.π(sars.s)) - policy.α[1] * policy.H̄
     end / length(sars)
@@ -80,12 +80,12 @@ function train_policy!(policy, sars)
     append!(policy.replay_buffer, sars)
     q_optimizer = ADAM()
     π_optimizer = ADAM()
-    eb_optimizer = ADAM()
     for fit_iteration in 1:1000
+    α_optimizer = ADAM()
         sars_sample = sample(policy.replay_buffer, 100)
         Flux.train!(sars -> q_loss(policy, sars), Flux.params(policy.q), [(sars_sample,)], q_optimizer)
         Flux.train!(sars -> π_loss(policy, sars), Flux.params(policy.π), [(sars_sample,)], π_optimizer)
-        Flux.train!(sars -> eb_loss(policy, sars), Flux.params(policy.α), [(sars_sample,)], eb_optimizer)
+        Flux.train!(sars -> α_loss(policy, sars), Flux.params(policy.α), [(sars_sample,)], α_optimizer)
         polyak_average!(policy.q̄, policy.q, 0.995)
     end
 end
