@@ -24,8 +24,8 @@ end
 
 function π_loss(policy, sars)
     -sum(sars) do sars
-        π_s = policy.π(sars.s)
-        π_s' * policy.q(sars.s) + exp(policy.log_entropy_bonus[1]) * entropy(π_s)
+        πₛ = policy.π(sars.s)
+        πₛ' * policy.q(sars.s) + policy.α[1] * entropy(πₛ)
     end / length(sars)
 end
 
@@ -66,16 +66,13 @@ function yq(policy, sars; discount_factor=0.99)
 end
 
 function V(policy, s)
-    π_s = policy.π(s)
-    π_s' * policy.q_target(s) + exp(policy.log_entropy_bonus[1]) * entropy(π_s)
+    πₛ = policy.π(s)
+    πₛ' * policy.q̄(s) + policy.α[1] * entropy(πₛ)
 end
 
 function eb_loss(policy, sars)
     sum(sars) do sars
-        π_s = policy.π(sars.s)
-        α = exp(policy.log_entropy_bonus[1])
-        H = policy.target_entropy_bonus * (-log(1/length(π_s)))
-        α * entropy(π_s) - sum(α * H * π_s)
+        policy.α[1] * entropy(policy.π(sars.s)) - policy.α[1] * policy.H̄
     end / length(sars)
 end
 
@@ -84,23 +81,22 @@ function train_policy!(policy, sars)
     q_optimizer = ADAM()
     π_optimizer = ADAM()
     eb_optimizer = ADAM()
-    for fit_iteration in 1:100
+    for fit_iteration in 1:1000
         sars_sample = sample(policy.replay_buffer, 100)
         Flux.train!(sars -> q_loss(policy, sars), Flux.params(policy.q), [(sars_sample,)], q_optimizer)
         Flux.train!(sars -> π_loss(policy, sars), Flux.params(policy.π), [(sars_sample,)], π_optimizer)
-        Flux.train!(sars -> eb_loss(policy, sars), Flux.params(policy.log_entropy_bonus), [(sars_sample,)], eb_optimizer)
-        polyak_average!(policy.q_target, policy.q, 0.995)
+        Flux.train!(sars -> eb_loss(policy, sars), Flux.params(policy.α), [(sars_sample,)], eb_optimizer)
+        polyak_average!(policy.q̄, policy.q, 0.995)
     end
-    println(exp(policy.log_entropy_bonus[1]))
 end
 
 struct Policy <: AbstractPolicy
     env  # The environment is not part of the policy, but the policy depends on the environment.
-    π
-    q
-    q_target
-    log_entropy_bonus
-    target_entropy_bonus
+    π  # Policy
+    q  # State-Action Value Function
+    q̄  # Target Q
+    α  # Entropy Bonus
+    H̄  # Target Entropy
     replay_buffer
     train_policy!
 end
@@ -115,7 +111,7 @@ function make_default_policy(env)
         q,
         deepcopy(q),
         [0.0],
-        0.5,
+        0.98 * -log(1/length(env.actions)),
         CircularBuffer(1_000_000),
         train_policy!)
 end
