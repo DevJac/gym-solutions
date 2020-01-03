@@ -80,8 +80,8 @@ function train_policy!(policy, sars)
     append!(policy.replay_buffer, sars)
     q_optimizer = ADAM()
     π_optimizer = ADAM()
-    for fit_iteration in 1:1000
     α_optimizer = ADAM()
+    for fit_iteration in 1:100
         sars_sample = sample(policy.replay_buffer, 100)
         Flux.train!(sars -> q_loss(policy, sars), Flux.params(policy.q), [(sars_sample,)], q_optimizer)
         Flux.train!(sars -> π_loss(policy, sars), Flux.params(policy.π), [(sars_sample,)], π_optimizer)
@@ -123,5 +123,5 @@ include("base.jl")
 function run()
     env = GymEnv(:CartPole, :v1)
     policy = SACD.make_default_policy(env)
-    run_until_reward(policy, 495, batch_size=10, adaptive_batch_size=false)
+    run_until_reward(policy, 495, batch_size=1, adaptive_batch_size=false)
 end
