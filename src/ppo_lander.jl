@@ -205,7 +205,6 @@ function run_until_reward(policy, stop_reward)
                     training_iteration, (time() - start_time) / 60^2, maximum(s.mean for s in summary_rewards),
                     summary_rewards[end].mean,
                     summary_rewards[end].q25, summary_rewards[end].median, summary_rewards[end].q75)
-            if mean(recent_rewards) >= stop_reward; break end
             scatter(all_rewards, size=(1200, 800), markercolor=:blue, legend=false,
                     markersize=3, markeralpha=0.3,
                     markerstrokewidth=0, markerstrokealpha=0)
@@ -216,7 +215,7 @@ function run_until_reward(policy, stop_reward)
                              markercolor=:red, markershape=:vline,
                              markersize=11, markeralpha=0.2,
                              markerstrokewidth=0, markerstrokealpha=0))
-            sleep(0.001)  # This enables the plot to update immediately.
+            if mean(recent_rewards) >= stop_reward; break end
             train_policy!(policy, sars)
         end
     catch e
