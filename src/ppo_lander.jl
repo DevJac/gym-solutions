@@ -11,13 +11,13 @@ pyplot()
 
 const env = GymEnv(:LunarLander, :v2)
 
-mutable struct SARS
-    s
-    a
-    r
-    q
-    s′
-    f
+mutable struct SARS{S, A}
+    s  :: S
+    a  :: A
+    r  :: Float32
+    q  :: Union{Nothing, Float32}
+    s′ :: S
+    f  :: Bool
 end
 
 function fill_q!(sars; discount_factor=1)
@@ -34,11 +34,11 @@ end
 
 function test_fill_q()
     sars = [
-        SARS(nothing, nothing, 1, nothing, nothing, false),
-        SARS(nothing, nothing, 1, nothing, nothing, false),
-        SARS(nothing, nothing, 1, nothing, nothing, true),
-        SARS(nothing, nothing, 1, nothing, nothing, false),
-        SARS(nothing, nothing, 1, nothing, nothing, true)]
+        SARS(nothing, nothing, 1f0, nothing, nothing, false),
+        SARS(nothing, nothing, 1f0, nothing, nothing, false),
+        SARS(nothing, nothing, 1f0, nothing, nothing, true),
+        SARS(nothing, nothing, 1f0, nothing, nothing, false),
+        SARS(nothing, nothing, 1f0, nothing, nothing, true)]
     fill_q!(sars)
     @test sars[1].q == 3
     @test sars[2].q == 2
@@ -47,10 +47,10 @@ function test_fill_q()
     @test sars[5].q == 1
 end
 
-struct Policy <: AbstractPolicy
-    π
-    q
-    v
+struct Policy{Π, Q, V} <: AbstractPolicy
+    π :: Π
+    q :: Q
+    v :: V
 end
 
 Policy() = Policy(make_π_network(), make_q_network(), make_v_network())
@@ -66,8 +66,8 @@ function make_π_network(hidden_layer_size=32)
         softmax)
 end
 
-struct QNetwork
-    network
+struct QNetwork{T}
+    network :: T
 end
 Flux.@treelike QNetwork
 (q::QNetwork)(s, a) = q.network(vcat(s, Flux.onehot(a, env.actions.items)))
@@ -139,7 +139,7 @@ function train_policy!(policy, sars)
 end
 
 function run_episodes(n_episodes, policy; render_count=0, kwargs...)
-    sars = SARS[]
+    sars = SARS{Vector{Float32}, Int8}[]
     rewards = Float32[]
     presults = if render_count < 1 && nprocs() > 1
         @showprogress "Env batch: " pmap(1:n_episodes) do _
@@ -166,7 +166,7 @@ function run_episodes′(n_episodes, policy; render_count=0, close_env=false, pa
     else
         run_env = env
     end
-    sars = SARS[]
+    sars = SARS{Vector{Float32}, Int8}[]
     rewards = Float32[]
     for episode in 1:n_episodes
         reward = run_episode(run_env, policy) do (s, a, r, s′)
@@ -176,7 +176,7 @@ function run_episodes′(n_episodes, policy; render_count=0, close_env=false, pa
                 r = copy(r)
                 s′ = copy(s′)
             end
-            push!(sars, SARS(s, a, r, nothing, s′, finished(run_env)))
+            push!(sars, SARS{Vector{Float32}, Int8}(s, a, r, nothing, s′, finished(run_env)))
             if render_count >= episode; render(run_env) end
         end
         push!(rewards, reward)
@@ -188,7 +188,7 @@ last(xs, n) = xs[max(1, end-n+1):end]
 
 clear_lines(n) = print("\u1b[F\u1b[2K" ^ n)
 
-function train_until_reward(policy, stop_reward; fancy_output=false, save_policy=false)
+function train_until_reward!(policy, stop_reward; fancy_output=false, save_policy=false)
     try
         print("\n" ^ 4)
         batch_size = 100
