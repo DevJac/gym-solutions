@@ -203,7 +203,13 @@ function train_until_reward!(policy, stop_reward; fancy_output=false, save_polic
             recent_rewards = last(all_rewards, batch_size)
             push!(summary_rewards, summarystats(recent_rewards))
             push!(means, (length(all_rewards), summary_rewards[end].mean))
-            if save_policy; bson(@sprintf("policy/policy_%03d.bson", training_iteration), policy=policy) end
+            if save_policy
+                bson(@sprintf("policy/policy_%03d.bson", training_iteration),
+                     all_rewards=all_rewards,
+                     summary_rewards=summary_rewards,
+                     means=means,
+                     policy=policy)
+            end
             clear_lines(4)
             @printf("%3d: Time: %4.2f    Best Mean: %8.3f    Mean: %8.3f    IQR: %8.3f, %8.3f, %8.3f\n",
                     training_iteration, (time() - start_time) / 60^2, maximum(s.mean for s in summary_rewards),
