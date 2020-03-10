@@ -191,16 +191,18 @@ clear_lines(n) = print("\u1b[F\u1b[2K" ^ n)
 function train_until_reward!(policy, stop_reward; fancy_output=false, save_policy=false)
     try
         print("\n" ^ 4)
-        batch_size = 100
         start_time = time()
         all_rewards = Float32[]
         summary_rewards = []
+        means = Tuple{Float32, Float32}[]
         for training_iteration in Iterators.countfrom()
+            batch_size = max(100, training_iteration)
             sars, rewards = run_episodes(batch_size, policy)
             if fancy_output; run_episodes(1, policy, render_count=1) end
             append!(all_rewards, rewards)
             recent_rewards = last(all_rewards, batch_size)
             push!(summary_rewards, summarystats(recent_rewards))
+            push!(means, (length(all_rewards), summary_rewards[end].mean))
             if save_policy; bson(@sprintf("policy/policy_%03d.bson", training_iteration), policy=policy) end
             clear_lines(4)
             @printf("%3d: Time: %4.2f    Best Mean: %8.3f    Mean: %8.3f    IQR: %8.3f, %8.3f, %8.3f\n",
@@ -211,7 +213,6 @@ function train_until_reward!(policy, stop_reward; fancy_output=false, save_polic
                 scatter(all_rewards, size=(1200, 800), markercolor=:blue, legend=false,
                         markersize=3, markeralpha=0.3,
                         markerstrokewidth=0, markerstrokealpha=0)
-                means = [(i*batch_size, s.mean) for (i,s) in enumerate(summary_rewards)]
                 plot!(means, linecolor=:red,
                       linewidth=1, linealpha=0.5)
                 display(scatter!(means,
