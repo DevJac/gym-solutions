@@ -5,7 +5,9 @@ using Distributed
     Pkg.activate(".")
 end
 
+using Runner
+
 @everywhere include("src/ppo_lander.jl")
 
 policy = Policy()
-train_until_reward!(policy, 200, fancy_output=true, save_policy=true)
+batch_train_until_reward!(env, policy, 200, fancy_output=true, save_policy=true)
