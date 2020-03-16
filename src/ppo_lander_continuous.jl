@@ -6,7 +6,7 @@ using Plots
 using Printf
 using ProgressMeter
 using Sars
-import Runner: train_policy!
+import Runner
 
 pyplot()
 
@@ -28,7 +28,8 @@ function make_π_network(hidden_layer_size=32)
         Dense(length(env.state), hidden_layer_size, swish),
         Dense(hidden_layer_size, hidden_layer_size, swish),
         Dense(hidden_layer_size, hidden_layer_size, swish),
-        Dense(hidden_layer_size, length(env.actions), identity))
+        Dense(hidden_layer_size, length(env.actions), identity),
+        x -> tanh.(x)*2)
 end
 
 struct QNetwork{T}
@@ -55,12 +56,15 @@ function make_v_network(hidden_layer_size=32)
         first)
 end
 
+nan_default(n, d) = isnan(n) ? d : n
+
 function pa(policy, sars)
     μ = policy.π(sars.s)
     σ = exp.(policy.σ)
     a = sars.a
     Σ = @. $sum((a-μ)^2 / σ^2 + 2*log(σ))
-    exp((-1/2) * (Σ + length(a) * log(2*pi)))
+    r = exp((-1/2) * (Σ + length(a) * log(2*pi)))
+    nan_default(clamp(r, 1e-9, 1), 1e-9)
 end
 
 function sample_π(policy, s)
@@ -73,7 +77,7 @@ end
 clip(n, ϵ) = clamp(n, 1 - ϵ, 1 + ϵ)
 
 function π_loss(policy₀, policy′, sars, ϵ=0.2)
-    loss = -sum(sars) do sars
+    -sum(sars) do sars
         a₀ = pa(policy₀, sars)
         a′ = pa(policy′, sars)
         advantage = policy₀.q(sars.s, sars.a) - policy₀.v(sars.s)
@@ -82,8 +86,6 @@ function π_loss(policy₀, policy′, sars, ϵ=0.2)
             a_ratio * advantage,
             clip(a_ratio, ϵ) * advantage)
     end / length(sars)
-    @assert !isnan(loss) "Loss is NaN"
-    loss
 end
 
 function q_loss(policy, sars)
@@ -98,7 +100,7 @@ function v_loss(policy, sars)
     end / length(sars)
 end
 
-function train_policy!(policy::Policy, sars)
+function Runner.train_policy!(policy::Policy, sars)
     fill_q!(sars, discount_factor=0.99)
     v_optimizer = ADAM()
     q_optimizer = ADAM()
@@ -119,3 +121,7 @@ function train_policy!(policy::Policy, sars)
             π_optimizer)
     end
 end
+
+Runner.environment(policy::Policy) = env
+Runner.statetype(policy::Policy) = Vector{Float32}
+Runner.actiontype(policy::Policy) = Vector{Float32}

@@ -1,6 +1,7 @@
 module Runner
 
-export run_episodes, batch_train_until_reward!, train_policy!
+export environment, statetype, actiontype, train!
+export run_episodes, batch_train_until_reward!
 
 using BSON
 using Distributed
@@ -10,19 +11,22 @@ using Printf
 using ProgressMeter
 using Sars
 
-train_policy!(policy, sars) = nothing
+environment(policy) = error("unimplemented")
+statetype(policy) = error("unimplemented")
+actiontype(policy) = error("unimplemented")
+train_policy!(policy, sars) = error("unimplemented")
 
-function run_episodes(env, n_episodes, policy; render_count=0, kwargs...)
-    sars = SARS{Vector{Float32}, Int8}[]
+function run_episodes(n_episodes, policy; render_count=0, kwargs...)
+    sars = SARS{statetype(policy), actiontype(policy)}[]
     rewards = Float32[]
     presults = if render_count < 1 && nprocs() > 1
         @showprogress "Env batch: " pmap(1:n_episodes) do _
-            run_episodes′(env, 1, policy, render_count=render_count, parallel=true, kwargs...)
+            run_episodes′(1, policy, render_count=render_count, parallel=true, kwargs...)
         end
     else
         progress = Progress(n_episodes, "Env batch: ")
         map(1:n_episodes) do _
-            r = run_episodes′(env, 1, policy, render_count=render_count, parallel=false, kwargs...)
+            r = run_episodes′(1, policy, render_count=render_count, parallel=false, kwargs...)
             next!(progress)
             r
         end
@@ -34,13 +38,14 @@ function run_episodes(env, n_episodes, policy; render_count=0, kwargs...)
     sars, rewards
 end
 
-function run_episodes′(env, n_episodes, policy; render_count=0, close_env=false, parallel=false)
+function run_episodes′(n_episodes, policy; render_count=0, close_env=false, parallel=false)
+    env = environment(policy)
     if parallel
         run_env = GymEnv(env.name, env.ver)
     else
         run_env = env
     end
-    sars = SARS{Vector{Float32}, Int8}[]
+    sars = SARS{statetype(policy), actiontype(policy)}[]
     rewards = Float32[]
     for episode in 1:n_episodes
         reward = run_episode(run_env, policy) do (s, a, r, s′)
@@ -50,11 +55,12 @@ function run_episodes′(env, n_episodes, policy; render_count=0, close_env=fals
                 r = copy(r)
                 s′ = copy(s′)
             end
-            push!(sars, SARS{Vector{Float32}, Int8}(s, a, r, nothing, s′, finished(run_env)))
+            push!(sars, SARS{statetype(policy), actiontype(policy)}(s, a, r, nothing, s′, finished(run_env)))
             if render_count >= episode; render(run_env) end
         end
         push!(rewards, reward)
     end
+    if close_env; close(env) end
     sars, rewards
 end
 
@@ -62,7 +68,7 @@ last(xs, n) = xs[max(1, end-n+1):end]
 
 clear_lines(n) = print("\u1b[F\u1b[2K" ^ n)
 
-function batch_train_until_reward!(env, policy, stop_reward; fancy_output=false, save_policy=false)
+function batch_train_until_reward!(policy, stop_reward; batch_size=100, fancy_output=false, save_policy=false)
     try
         print("\n" ^ 4)
         start_time = time()
@@ -70,11 +76,11 @@ function batch_train_until_reward!(env, policy, stop_reward; fancy_output=false,
         summary_rewards = []
         means = Tuple{Float32, Float32}[]
         for training_iteration in Iterators.countfrom()
-            batch_size = max(100, training_iteration)
-            sars, rewards = run_episodes(env, batch_size, policy)
-            if fancy_output; run_episodes(env, 1, policy, render_count=1) end
+            iteration_batch_size = max(batch_size, training_iteration)
+            sars, rewards = run_episodes(iteration_batch_size, policy)
+            if fancy_output; run_episodes(1, policy, render_count=1) end
             append!(all_rewards, rewards)
-            recent_rewards = last(all_rewards, batch_size)
+            recent_rewards = last(all_rewards, iteration_batch_size)
             push!(summary_rewards, summarystats(recent_rewards))
             push!(means, (length(all_rewards), summary_rewards[end].mean))
             if save_policy
@@ -106,7 +112,7 @@ function batch_train_until_reward!(env, policy, stop_reward; fancy_output=false,
     catch e
         if typeof(e) != InterruptException; rethrow() end
     finally
-        close(env)
+        close(environment(policy))
     end
     policy
 end

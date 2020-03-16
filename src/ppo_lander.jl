@@ -6,7 +6,7 @@ using Plots
 using Printf
 using ProgressMeter
 using Sars
-import Runner: train_policy!
+import Runner
 
 pyplot()
 
@@ -85,7 +85,7 @@ function v_loss(policy, sars)
     end / length(sars)
 end
 
-function train_policy!(policy::Policy, sars)
+function Runner.train_policy!(policy::Policy, sars)
     fill_q!(sars, discount_factor=0.99)
     v_optimizer = ADAM()
     q_optimizer = ADAM()
@@ -102,3 +102,7 @@ function train_policy!(policy::Policy, sars)
         Flux.train!(sars -> π_loss(policy₀, policy′, sars), Flux.params(policy′.π), [(sample(sars, 100),)], π_optimizer)
     end
 end
+
+Runner.environment(policy::Policy) = env
+Runner.statetype(policy::Policy) = Vector{Float32}
+Runner.actiontype(policy::Policy) = Int8
