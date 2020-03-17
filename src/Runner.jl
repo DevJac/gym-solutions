@@ -96,6 +96,7 @@ function batch_train_until_reward!(policy, stop_reward; batch_size=100, fancy_ou
                     summary_rewards[end].mean,
                     summary_rewards[end].q25, summary_rewards[end].median, summary_rewards[end].q75)
             if fancy_output
+                pyplot()
                 scatter(all_rewards, size=(1200, 800), background_color=:black, markercolor=:white, legend=false,
                         markersize=3, markeralpha=0.3,
                         markerstrokewidth=0, markerstrokealpha=0)

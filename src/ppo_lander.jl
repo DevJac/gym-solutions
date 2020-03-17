@@ -1,14 +1,8 @@
-using BSON
-using Distributed
 using Flux
 using OpenAIGym
-using Plots
-using Printf
 using ProgressMeter
 using Sars
 import Runner
-
-pyplot()
 
 const env = GymEnv(:LunarLander, :v2)
 
