@@ -50,15 +50,12 @@ function make_v_network(hidden_layer_size=32)
         first)
 end
 
-nan_default(n, d) = isnan(n) ? d : n
-
 function pa(policy, sars)
     μ = policy.π(sars.s)
     σ = exp.(policy.σ)
     a = sars.a
     Σ = @. $sum((a-μ)^2 / σ^2 + 2*log(σ))
-    r = exp((-1/2) * (Σ + length(a) * log(2*pi)))
-    nan_default(clamp(r, 1e-9, 1), 1e-9)
+    exp((-1/2) * (Σ + length(a) * log(2*pi)))
 end
 
 function sample_π(policy, s)
@@ -76,9 +73,10 @@ function π_loss(policy₀, policy′, sars, ϵ=0.2)
         a′ = pa(policy′, sars)
         advantage = policy₀.q(sars.s, sars.a) - policy₀.v(sars.s)
         a_ratio = a′ / a₀
-        min(
+        r = min(
             a_ratio * advantage,
             clip(a_ratio, ϵ) * advantage)
+        isnan(r) ? 0 : r
     end / length(sars)
 end
 
