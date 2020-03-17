@@ -96,7 +96,7 @@ function Runner.train_policy!(policy::Policy, sars)
     fill_q!(sars, discount_factor=0.99)
     v_optimizer = ADAM()
     q_optimizer = ADAM()
-    π_optimizer = ADAM()
+    π_optimizer = ADAM(0.000_1)
     @showprogress "Fitting v: " for fit_iteration in 1:1000
         Flux.train!(sars -> v_loss(policy, sars), Flux.params(policy.v), [(sample(sars, 100),)], v_optimizer)
     end
