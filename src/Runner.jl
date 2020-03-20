@@ -1,6 +1,5 @@
 module Runner
 
-export environment, statetype, actiontype, train!
 export run_episodes, batch_train_until_reward!
 
 using BSON
@@ -97,17 +96,7 @@ function batch_train_until_reward!(policy, stop_reward; batch_size=100, fancy_ou
                     training_iteration, (time() - start_time) / 60^2, maximum(s.mean for s in summary_rewards),
                     summary_rewards[end].mean,
                     summary_rewards[end].q25, summary_rewards[end].median, summary_rewards[end].q75)
-            if fancy_output
-                scatter(all_rewards, size=(1200, 800), background_color=:black, markercolor=:white, legend=false,
-                        markersize=3, markeralpha=0.3,
-                        markerstrokewidth=0, markerstrokealpha=0)
-                plot!(means, linecolor=:red,
-                      linewidth=1, linealpha=0.5)
-                display(scatter!(means,
-                                 markercolor=:red, markershape=:vline,
-                                 markersize=11, markeralpha=0.2,
-                                 markerstrokewidth=0, markerstrokealpha=0))
-            end
+            if fancy_output; graph(all_rewards, means) end
             if mean(recent_rewards) >= stop_reward; break end
             train_policy!(policy, sars)
         end
@@ -117,6 +106,18 @@ function batch_train_until_reward!(policy, stop_reward; batch_size=100, fancy_ou
         close(environment(policy))
     end
     policy
+end
+
+function graph(all_rewards, means)
+    scatter(all_rewards, size=(1200, 800), background_color=:black, markercolor=:white, legend=false,
+            markersize=3, markeralpha=0.3,
+            markerstrokewidth=0, markerstrokealpha=0)
+    plot!(means, linecolor=:red,
+          linewidth=1, linealpha=0.5)
+    display(scatter!(means,
+                     markercolor=:red, markershape=:vline,
+                     markersize=11, markeralpha=0.2,
+                     markerstrokewidth=0, markerstrokealpha=0))
 end
 
 end # module
