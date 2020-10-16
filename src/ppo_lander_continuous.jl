@@ -29,7 +29,7 @@ end
 struct QNetwork{T}
     network :: T
 end
-Flux.@treelike QNetwork
+Flux.@functor QNetwork
 (q::QNetwork)(s, a) = q.network(vcat(s, a))
 
 function make_q_network(hidden_layer_size=32)
