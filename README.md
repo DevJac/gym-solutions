@@ -35,4 +35,5 @@ Replace Julia's `libstdc++.so.6` with a symlink to the system version:
 * Link that location to julia-1.3.0/lib/julia-libstdc++.so.6 using ln.
 
 See: https://github.com/JuliaPlots/Makie.jl/issues/614#issuecomment-635556398
+
 See: https://github.com/JuliaGL/GLFW.jl/issues/198
