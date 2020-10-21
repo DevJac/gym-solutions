@@ -13,7 +13,7 @@ struct Policy{Π, Q, V} <: AbstractPolicy
     v :: V
 end
 
-Policy() = Policy(make_π_network(), [0f0, 0f0], make_q_network(), make_v_network())
+Policy() = Policy(make_π_network(), zeros(Float32, length(env.actions)), make_q_network(), make_v_network())
 
 Reinforce.action(policy::Policy, r, s, A) = sample_π(policy, s)
 
@@ -23,7 +23,7 @@ function make_π_network(hidden_layer_size=32)
         Dense(hidden_layer_size, hidden_layer_size, swish),
         Dense(hidden_layer_size, hidden_layer_size, swish),
         Dense(hidden_layer_size, length(env.actions), identity),
-        x -> tanh.(x)*2)
+        x -> tanh.(x)*2)  # Output range: (-2, 2)
 end
 
 struct QNetwork{T}
@@ -62,7 +62,7 @@ function sample_π(policy, s)
     μ = policy.π(s)
     σ = exp.(policy.σ)
     a = μ + σ .* randn(length(μ))
-    (n -> clamp(n, -1, 1)).(a)
+    (n -> clamp(n, -1, 1)).(a)  # Output clamped to range: (-1, 1)
 end
 
 clip(n, ϵ) = clamp(n, 1 - ϵ, 1 + ϵ)
