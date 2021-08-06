@@ -9,9 +9,10 @@ Base.iterate(set::DiscreteSet) = iterate(set.items)
 Base.iterate(set::DiscreteSet, state) = iterate(set.items, state)
 OpenAIGym.sample(set::DiscreteSet, weights) = sample(set.items, weights)
 
-const env = GymEnv(:LunarLander, :v2)
+const env = GymEnv(:CartPole, :v1)
+const env_step_limit = env.pyenv._max_episode_steps
 
-function polyak_average!(a, b, τ=0.05)
+function polyak_average!(a, b, τ=0.01)
     for (pa, pb) in zip(params(a), params(b))
         pa .*= 1 - τ
         pa .+= pb * τ
@@ -29,7 +30,6 @@ end
 
 function nonans(label)
     function (xs)
-        xs :: Union{Vector{Float32}, Matrix{Float32}, PyArray{Float32, 1}}
         @assert !any(isnan, xs) "nan at $label"
         xs
     end
@@ -57,7 +57,7 @@ function make_π_network()
         nonans("π input"),
         Dense(4, 600, relu),
         Dense(600, 200, relu),
-        Dense(200, 2),
+        Dense(200, 2, identity),
         softmax,
         nonans("π output"))
 end
@@ -67,7 +67,7 @@ function make_q_network()
         nonans("q input"),
         Dense(4, 600, relu),
         Dense(600, 200, relu),
-        Dense(200, 2),
+        Dense(200, 2, identity),
         nonans("q output"))
 end
 
@@ -90,7 +90,7 @@ const q2_opt = RMSProp(0.001)
 const π_opt = RMSProp(0.001)
 
 const γ = 0.99
-const α = 0.03
+const α = 0.3
 
 function train!(policy, replay_buffer)
     training_transitions = sample(replay_buffer, 100)
@@ -99,19 +99,21 @@ function train!(policy, replay_buffer)
             t.r
         else
             a′_probs = policy.π(t.s′)
-            a′_sample_index = sample(1:4, Weights(a′_probs))
-            # Subtract 1 to move from 1-based Julia indexing to 0-based Python / Gym indexing
-            a′ = a′_sample_index - 1
-            a′_prob = a′_probs[a′_sample_index]
-            Q_term = Q_targ(policy, t.s′, a′)
-            entropy_term = α * log(a′_prob)
-            @debug "y terms" Q_term entropy_term
-            t.r + γ * (Q_term - entropy_term)
+            sum(1:2) do a′_sample_index
+                Zygote.@ignore @debug "" a′_sample_index
+                # Subtract 1 to move from 1-based Julia indexing to 0-based Python / Gym indexing
+                a′ = a′_sample_index - 1
+                a′_prob = a′_probs[a′_sample_index]
+                Q_term = Q_targ(policy, t.s′, a′)
+                entropy_term = α * log(a′_prob)
+                @debug "y terms" Q_term entropy_term
+                a′_prob * (t.r + γ * (Q_term - entropy_term))
+            end
         end
     end)
     s_stack::Matrix{Float32} = reduce(hcat, map(t -> t.s, training_transitions))
     # 0 is a valid action. Add 1 to move to Julia's 1-based indexing.
-    a_stack::Matrix{Float32} = onehot(4, map(t -> t.a+1, training_transitions))
+    a_stack::Matrix{Float32} = onehot(2, map(t -> t.a+1, training_transitions))
     @debug "pre q training" q_target
     @debug "" s_stack
     @debug "" a_stack
@@ -133,15 +135,17 @@ function train!(policy, replay_buffer)
         -mean(training_transitions) do t
             a_probs = policy.π(t.s)
             Zygote.@ignore @debug "policy training" a_probs
-            a_sample_index = Zygote.@ignore sample(1:4, Weights(a_probs))
-            Zygote.@ignore @debug "" a_sample_index
-            # Subtract 1 to move from 1-based Julia indexing to 0-based Python / Gym indexing
-            a = a_sample_index - 1
-            a_prob = a_probs[a_sample_index]
-            Q_term = Q(policy, t.s, a)
-            entropy_term = α * log(a_prob)
-            Zygote.@ignore @debug "" Q_term entropy_term
-            Q_term - entropy_term
+            sum(1:2) do a_sample_index
+                Zygote.@ignore @debug "" a_sample_index
+                # Subtract 1 to move from 1-based Julia indexing to 0-based Python / Gym indexing
+                a = a_sample_index - 1
+                a_prob = a_probs[a_sample_index]
+                Zygote.@ignore @debug "" a_prob
+                Q_term = Q(policy, t.s, a)
+                entropy_term = α * log(a_prob)
+                Zygote.@ignore @debug "" Q_term entropy_term
+                a_prob * (Q_term - entropy_term)
+            end
         end
     end
     @debug "policy loss" loss
@@ -165,17 +169,19 @@ function Policy()
 end
 
 function Reinforce.action(policy::AbstractPolicy, r, s, A)
-    network_out::Vector{Float32} = policy.π(s::Union{Vector{Float32}, PyArray{Float32, 1}})
+    network_out::Vector{Float32} = policy.π(s::Union{Vector{Float32}, PyArray{Float64, 1}})
     sample(A, Weights(network_out))
 end
 
 function main()
-    replay_buffer = CircularBuffer{SARSD}(100_000)
+    replay_buffer = CircularBuffer{SARSD}(10_000)
     recent_episode_rewards = CircularBuffer{Float32}(100)
     policy = Policy()
-    for episode in 1:200
+    for episode in 1:500
+        t = 0
         episode_reward = run_episode(env, policy) do (s, a, r, s′)
-            push!(replay_buffer, SARSD(s, a, Float32(r), s′, finished(env)))
+            t += 1
+            push!(replay_buffer, SARSD(s, a, Float32(r), s′, t < env_step_limit && finished(env)))
             render(env)
         end
         push!(recent_episode_rewards, episode_reward)
