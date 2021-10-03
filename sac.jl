@@ -69,7 +69,7 @@ function run_episode(step_f, env, policy)
         a = action(policy, s, env.action_space)
         s′, r, failed, info = step!(env, a)
         episode_reward += r
-        @assert t < env.gymenv._max_episode_steps
+        @assert t <= env.gymenv._max_episode_steps
         limit = t == env.gymenv._max_episode_steps
         if limit
             failed = false
