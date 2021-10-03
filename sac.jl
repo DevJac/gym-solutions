@@ -1,16 +1,21 @@
 using DataStructures
+using Gym
 using Flux
-using LearnBase: DiscreteSet
-using OpenAIGym
-using PyCall
+using PyCall: PyArray
+using StatsBase
+using StatsBase: sample
+using TensorBoardLogger
 using Zygote
 
-Base.iterate(set::DiscreteSet) = iterate(set.items)
-Base.iterate(set::DiscreteSet, state) = iterate(set.items, state)
-OpenAIGym.sample(set::DiscreteSet, weights) = sample(set.items, weights)
+tb_log = TBLogger("tb_logs/sac")
 
-const env = GymEnv(:CartPole, :v1)
-const env_step_limit = env.pyenv._max_episode_steps
+Base.length(ds::DiscreteS) = ds.n
+Base.iterate(ds::DiscreteS) = iterate(0:ds.n-1)
+Base.iterate(ds::DiscreteS, state) = iterate(0:ds.n-1, state)
+StatsBase.sample(ds::DiscreteS) = Gym.sample(ds)
+StatsBase.sample(ds::DiscreteS, Weights) = StatsBase.sample(0:ds.n-1, Weights)
+
+const env = GymEnv("CartPole-v1")
 
 function polyak_average!(a, b, τ=0.01)
     for (pa, pb) in zip(params(a), params(b))
@@ -43,13 +48,39 @@ function onehot(n, is)
     end)
 end
 
+struct SAR{S, A}
+    s      :: S
+    a      :: A
+    r      :: Float32
+    s′     :: S
+    t      :: Int32
+    failed :: Bool
+    limit  :: Bool
+end
 
-struct SARSD{S, A}
-    s  :: S
-    a  :: A
-    r  :: Float32
-    s′ :: S
-    d  :: Bool
+abstract type AbstractPolicy end
+
+function action end
+
+function run_episode(step_f, env, policy)
+    episode_reward = 0f0
+    s = Gym.reset!(env)
+    for t in Iterators.countfrom(1)
+        a = action(policy, s, env.action_space)
+        s′, r, failed, info = step!(env, a)
+        episode_reward += r
+        @assert t < env.gymenv._max_episode_steps
+        limit = t == env.gymenv._max_episode_steps
+        if limit
+            failed = false
+        end
+        step_f(SAR(s, a, Float32(r), s′, Int32(t), failed, limit))
+        if failed || limit
+            break
+        end
+        s = s′
+    end
+    episode_reward
 end
 
 function make_π_network()
@@ -89,13 +120,14 @@ const q1_opt = RMSProp(0.001)
 const q2_opt = RMSProp(0.001)
 const π_opt = RMSProp(0.001)
 
-const γ = 0.99
+const γ = 0.9
 const α = 0.3
 
 function train!(policy, replay_buffer)
     training_transitions = sample(replay_buffer, 100)
     q_target::Vector{Float32} = collect(map(training_transitions) do t
-        if t.d
+        if t.failed
+            @debug "failed" t.r
             t.r
         else
             a′_probs = policy.π(t.s′)
@@ -117,17 +149,19 @@ function train!(policy, replay_buffer)
     @debug "pre q training" q_target
     @debug "" s_stack
     @debug "" a_stack
-    for (q_opt, q_network) in ((q1_opt, policy.q1), (q2_opt, policy.q2))
+    for (qi, q_opt, q_network) in ((1, q1_opt, policy.q1), (2, q2_opt, policy.q2))
         q_params = params(q_network)
         loss, grads = valgrad(q_params) do
             q_out::Matrix{Float32} = q_network(s_stack)
             Zygote.@ignore @debug "q training" q_out
+            Zygote.@ignore log_histogram(tb_log, "sac/q$(qi)_out", flatten(q_out))
             qav::Vector{Float32} = flatten(sum(q_out .* a_stack, dims=1))
             Zygote.@ignore @debug "" qav
             error::Vector{Float32} = (qav - q_target).^2
             mean(error)
         end
         @debug "q loss" loss
+        log_value(tb_log, "sac/q$(qi)_loss", loss)
         Flux.Optimise.update!(q_opt, q_params, grads)
     end
     π_params = params(policy.π)
@@ -149,6 +183,7 @@ function train!(policy, replay_buffer)
         end
     end
     @debug "policy loss" loss
+    log_value(tb_log, "sac/policy_loss", loss)
     Flux.Optimise.update!(π_opt, π_params, grads)
     polyak_average!(policy.q1_targ, policy.q1)
     polyak_average!(policy.q2_targ, policy.q2)
@@ -168,25 +203,25 @@ function Policy()
     Policy(make_π_network(), q1, q2, deepcopy(q1), deepcopy(q2))
 end
 
-function Reinforce.action(policy::AbstractPolicy, r, s, A)
+function action(policy::AbstractPolicy, s, A)
     network_out::Vector{Float32} = policy.π(s::Union{Vector{Float32}, PyArray{Float64, 1}})
     sample(A, Weights(network_out))
 end
 
 function main()
-    replay_buffer = CircularBuffer{SARSD}(10_000)
+    replay_buffer = CircularBuffer{SAR}(10_000)
     recent_episode_rewards = CircularBuffer{Float32}(100)
     policy = Policy()
     for episode in 1:500
-        t = 0
-        episode_reward = run_episode(env, policy) do (s, a, r, s′)
-            t += 1
-            push!(replay_buffer, SARSD(s, a, Float32(r), s′, t < env_step_limit && finished(env)))
+        log_value(tb_log, "sac/replay_buffer_length", length(replay_buffer))
+        episode_reward = run_episode(env, policy) do sar
+            push!(replay_buffer, sar)
             render(env)
         end
         push!(recent_episode_rewards, episode_reward)
         @info "" mean(recent_episode_rewards) length(replay_buffer)
         for _ in 1:10
+            increment_step!(tb_log, 1)
             train!(policy, replay_buffer)
         end
     end
