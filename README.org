@@ -1,4 +1,4 @@
-* RL Experiments
+* Gym Solutions
 My personal reinforcement learning experiments with Julia.
 ** Supporting Technology
 *** Poetry
