@@ -1,0 +1,18 @@
+* RL Experiments
+My personal reinforcement learning experiments with Julia.
+** Supporting Technology
+*** Poetry
+See: https://python-poetry.org/docs/basic-usage/
+
+The following commands may be useful:
+#+begin_src
+dnf install poetry
+poetry help
+poetry config --list
+poetry run ipython
+poetry shell
+#+end_src
+** Quickstart
+1. Run ~poetry install~ and ~poetry shell~
+2. Run ~julia --project~, install dependencies ~] instantiate~
+3. Run ~julia --project hello_gym.jl~

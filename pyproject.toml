@@ -1,0 +1,10 @@
+[tool.poetry]
+name = "rl-experiments"
+version = "0.1.0"
+description = ""
+authors = []
+
+[tool.poetry.dependencies]
+python = "^3.10"
+ipython = "^8.2.0"
+gym = {extras = ["box2d"], version = "^0.23.1"}
