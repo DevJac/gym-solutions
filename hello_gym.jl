@@ -1,11 +1,20 @@
-using OpenAIGym
-env = GymEnv(:LunarLander, :v2)
-for i ∈ 1:5
-    T = 0
-    R = run_episode(env, RandomPolicy()) do (s, a, r, s′)
-        render(env)
-        T += 1
+import PyCall
+
+gym = PyCall.pyimport("gym")
+env = gym.make("LunarLander-v2")
+
+for episode in 1:5
+    steps = 0
+    total_rewards = 0
+    env.reset()
+    env.render()
+    done = false
+    while !done
+        a = rand(0:3)
+        (s′, r, done, _) = env.step(a)
+        env.render()
+        steps += 1
+        total_rewards += r
     end
-    @info("Episode $i finished after $T steps", R)
+    @info "Episode $episode finished" episode steps total_rewards
 end
-close(env)
